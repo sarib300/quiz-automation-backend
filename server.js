@@ -9,6 +9,16 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
+app.get("/", (req, res) => {
+  res.status(200).json({
+    status: "success",
+    message: "Quiz Automation Backend is running successfully!",
+    endpoints: {
+      createForm: "/api/create-form"
+    }
+  });
+});
+
 // Test route
 app.post("/api/create-form", async (req, res) => {
   try {
