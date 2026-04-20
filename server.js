@@ -64,15 +64,39 @@ app.post("/api/create-form", async (req, res) => {
     }
 
     // Send data to Google Apps Script
+    // GAS web apps return 302 redirects. We must follow them manually
+    // because Node fetch converts POST→GET on redirect, losing the body.
     const fetchResponse = await fetch(SCRIPT_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ title, questions, email, phones }),
+      redirect: "follow",
     });
 
-    const result = await fetchResponse.json();
+    // GAS may return HTML or redirect. Get text first, then parse.
+    const responseText = await fetchResponse.text();
+    console.log("GAS Response Status:", fetchResponse.status);
+    console.log("GAS Response Text (first 500 chars):", responseText.substring(0, 500));
+
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      // If the response is not JSON, it's likely the redirect HTML page.
+      // Try to extract the redirect URL and fetch that instead.
+      const redirectMatch = responseText.match(/https:\/\/script\.googleusercontent\.com[^"']*/);
+      if (redirectMatch) {
+        console.log("Following GAS redirect to:", redirectMatch[0]);
+        const redirectResponse = await fetch(redirectMatch[0]);
+        const redirectText = await redirectResponse.text();
+        console.log("Redirect Response:", redirectText.substring(0, 500));
+        result = JSON.parse(redirectText);
+      } else {
+        throw new Error("Google Apps Script returned an unexpected response. Make sure the script is deployed as a web app with 'Anyone' access.");
+      }
+    }
 
     res.json(result);
   } catch (error) {
